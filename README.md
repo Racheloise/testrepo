@@ -1,5 +1,3 @@
 # testrepo
 
-## Editing the file
-
-It is a markdown file in this repository.
+This repository contains all completed notebooks and Python files associated with Coursera Applied Data Science Capstone course.
