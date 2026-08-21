@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpaceX Launch Records Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.32.0/plotly.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0D14;
+    --panel:#111623;
+    --panel-2:#161D2E;
+    --line:#232B40;
+    --text:#E7ECF3;
+    --text-dim:#8894A6;
+    --cyan:#49D6E8;
+    --amber:#FFB454;
+    --fail:#FF6B6B;
+    --mono:'JetBrains Mono','SFMono-Regular',Consolas,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse at top left, rgba(73,214,232,0.06), transparent 55%),
+      radial-gradient(ellipse at bottom right, rgba(255,180,84,0.05), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:28px 32px 56px;
+  }
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    border-bottom:1px solid var(--line);
+    padding-bottom:18px;
+    margin-bottom:26px;
+    flex-wrap:wrap;
+    gap:14px;
+  }
+  .title-block h1{
+    margin:0;
+    font-size:26px;
+    letter-spacing:0.3px;
+    font-weight:700;
+  }
+  .title-block .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:2.5px;
+    color:var(--cyan);
+    text-transform:uppercase;
+    margin-bottom:6px;
+    display:block;
+  }
+  .telemetry{
+    display:flex;
+    gap:28px;
+    font-family:var(--mono);
+  }
+  .telemetry .stat{text-align:right;}
+  .telemetry .stat .val{font-size:20px;font-weight:700;color:var(--text);}
+  .telemetry .stat .lbl{font-size:10px;letter-spacing:1.5px;color:var(--text-dim);text-transform:uppercase;}
+  .telemetry .stat.success .val{color:var(--cyan);}
+  .telemetry .stat.fail .val{color:var(--fail);}
+
+  .controls{
+    display:flex;
+    gap:20px;
+    flex-wrap:wrap;
+    margin-bottom:22px;
+  }
+  .panel{
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:18px 20px;
+  }
+  .control-panel{flex:1 1 260px;}
+  .control-label{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-bottom:10px;
+    display:block;
+  }
+  select#site-dropdown{
+    width:100%;
+    background:#0D1220;
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 12px;
+    font-family:var(--sans);
+    font-size:14px;
+    appearance:none;
+    background-image:linear-gradient(45deg, transparent 50%, var(--cyan) 50%), linear-gradient(135deg, var(--cyan) 50%, transparent 50%);
+    background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 13px) calc(50% - 3px);
+    background-size:5px 5px, 5px 5px;
+    background-repeat:no-repeat;
+    cursor:pointer;
+  }
+  select#site-dropdown:focus{outline:2px solid var(--cyan);outline-offset:1px;}
+
+  .slider-panel{flex:2 1 420px;}
+  .slider-readout{
+    display:flex;
+    justify-content:space-between;
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--cyan);
+    margin-bottom:10px;
+  }
+  .range-wrap{
+    position:relative;
+    height:34px;
+  }
+  .range-wrap input[type=range]{
+    position:absolute;
+    width:100%;
+    top:12px;
+    -webkit-appearance:none;
+    appearance:none;
+    background:transparent;
+    pointer-events:none;
+    margin:0;
+  }
+  .range-wrap input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    pointer-events:all;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    background:var(--cyan);
+    border:2px solid #06222a;
+    cursor:pointer;
+    margin-top:-1px;
+  }
+  .range-wrap input[type=range]::-moz-range-thumb{
+    pointer-events:all;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    background:var(--cyan);
+    border:2px solid #06222a;
+    cursor:pointer;
+  }
+  .range-wrap input[type=range]::-webkit-slider-runnable-track{
+    height:4px;
+    background:transparent;
+  }
+  .track{
+    position:absolute;
+    top:16px;
+    left:0;
+    right:0;
+    height:4px;
+    background:var(--line);
+    border-radius:2px;
+  }
+  .track-fill{
+    position:absolute;
+    top:16px;
+    height:4px;
+    background:var(--cyan);
+    border-radius:2px;
+  }
+  .tick-row{
+    display:flex;
+    justify-content:space-between;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--text-dim);
+    margin-top:6px;
+  }
+
+  .charts{
+    display:grid;
+    grid-template-columns:1fr 1.3fr;
+    gap:20px;
+  }
+  @media (max-width:880px){ .charts{grid-template-columns:1fr;} }
+  .chart-panel h2{
+    margin:0 0 4px;
+    font-size:14px;
+    letter-spacing:0.5px;
+  }
+  .chart-panel .sub{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-dim);
+    margin-bottom:6px;
+  }
+  footer{
+    margin-top:28px;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-dim);
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-block">
+    <span class="eyebrow">Falcon 9 First-Stage Recovery</span>
+    <h1>SpaceX Launch Records Dashboard</h1>
+  </div>
+  <div class="telemetry">
+    <div class="stat"><div class="val" id="tele-total">56</div><div class="lbl">Launches</div></div>
+    <div class="stat success"><div class="val" id="tele-success">24</div><div class="lbl">Recovered</div></div>
+    <div class="stat fail"><div class="val" id="tele-fail">32</div><div class="lbl">Not recovered</div></div>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="panel control-panel">
+    <label class="control-label" for="site-dropdown">Launch site</label>
+    <select id="site-dropdown"></select>
+  </div>
+  <div class="panel slider-panel">
+    <label class="control-label">Payload range (kg)</label>
+    <div class="slider-readout"><span id="range-min-label">0</span><span id="range-max-label">10000</span></div>
+    <div class="range-wrap">
+      <div class="track"></div>
+      <div class="track-fill" id="track-fill"></div>
+      <input type="range" id="payload-min" min="0" max="10000" step="1000" value="0">
+      <input type="range" id="payload-max" min="0" max="10000" step="1000" value="10000">
+    </div>
+    <div class="tick-row"><span>0</span><span>2500</span><span>5000</span><span>7500</span><span>10000</span></div>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="panel chart-panel">
+    <h2>Success pie chart</h2>
+    <div class="sub" id="pie-sub">Total successful launches by site</div>
+    <div id="success-pie-chart" style="height:420px;"></div>
+  </div>
+  <div class="panel chart-panel">
+    <h2>Payload vs. outcome</h2>
+    <div class="sub" id="scatter-sub">Correlation between payload and success for all sites</div>
+    <div id="success-payload-scatter-chart" style="height:420px;"></div>
+  </div>
+</div>
+
+<footer>Data: spacex_launch_dash.csv &middot; 56 Falcon 9 launches &middot; class = 1 first-stage landing recovered, 0 not recovered</footer>
+
+<script>
+const spacexData = [{"Flight Number": 1, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 0.0, "Booster Version": "F9 v1.0  B0003", "Booster Version Category": "v1.0"}, {"Flight Number": 2, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 0.0, "Booster Version": "F9 v1.0  B0004", "Booster Version Category": "v1.0"}, {"Flight Number": 3, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 525.0, "Booster Version": "F9 v1.0  B0005", "Booster Version Category": "v1.0"}, {"Flight Number": 4, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 500.0, "Booster Version": "F9 v1.0  B0006", "Booster Version Category": "v1.0"}, {"Flight Number": 5, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 677.0, "Booster Version": "F9 v1.0  B0007", "Booster Version Category": "v1.0"}, {"Flight Number": 7, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 3170.0, "Booster Version": "F9 v1.1", "Booster Version Category": "v1.1"}, {"Flight Number": 8, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 3325.0, "Booster Version": "F9 v1.1", "Booster Version Category": "v1.1"}, {"Flight Number": 9, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 2296.0, "Booster Version": "F9 v1.1", "Booster Version Category": "v1.1"}, {"Flight Number": 10, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 1316.0, "Booster Version": "F9 v1.1", "Booster Version Category": "v1.1"}, {"Flight Number": 11, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 4535.0, "Booster Version": "F9 v1.1", "Booster Version Category": "v1.1"}, {"Flight Number": 12, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 4428.0, "Booster Version": "F9 v1.1 B1011", "Booster Version Category": "v1.1"}, {"Flight Number": 13, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 2216.0, "Booster Version": "F9 v1.1 B1010", "Booster Version Category": "v1.1"}, {"Flight Number": 14, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 2395.0, "Booster Version": "F9 v1.1 B1012", "Booster Version Category": "v1.1"}, {"Flight Number": 15, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 570.0, "Booster Version": "F9 v1.1 B1013", "Booster Version Category": "v1.1"}, {"Flight Number": 16, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 4159.0, "Booster Version": "F9 v1.1 B1014", "Booster Version Category": "v1.1"}, {"Flight Number": 17, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 1898.0, "Booster Version": "F9 v1.1 B1015", "Booster Version Category": "v1.1"}, {"Flight Number": 18, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 4707.0, "Booster Version": "F9 v1.1 B1016", "Booster Version Category": "v1.1"}, {"Flight Number": 19, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Failure  (in flight)", "class": 1, "Payload Mass (kg)": 1952.0, "Booster Version": "F9 v1.1 B1018", "Booster Version Category": "v1.1"}, {"Flight Number": 20, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 2034.0, "Booster Version": "F9 FT B1019", "Booster Version Category": "FT"}, {"Flight Number": 22, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 5271.0, "Booster Version": "F9 FT B1020", "Booster Version Category": "FT"}, {"Flight Number": 23, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 3136.0, "Booster Version": "F9 FT B1021.1", "Booster Version Category": "FT"}, {"Flight Number": 24, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 4696.0, "Booster Version": "F9 FT B1022", "Booster Version Category": "FT"}, {"Flight Number": 25, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 3100.0, "Booster Version": "F9 FT B1023.1", "Booster Version Category": "FT"}, {"Flight Number": 26, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 3600.0, "Booster Version": "F9 FT B1024", "Booster Version Category": "FT"}, {"Flight Number": 27, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 2257.0, "Booster Version": "F9 FT B1025.1", "Booster Version Category": "FT"}, {"Flight Number": 28, "Launch Site": "CCAFS LC-40", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 4600.0, "Booster Version": "F9 FT B1026", "Booster Version Category": "FT"}, {"Flight Number": 6, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 500.0, "Booster Version": "F9 v1.1  B1003", "Booster Version Category": "v1.1"}, {"Flight Number": 21, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 553.0, "Booster Version": "F9 v1.1 B1017", "Booster Version Category": "v1.1"}, {"Flight Number": 29, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 9600.0, "Booster Version": "F9 FT B1029.1", "Booster Version Category": "FT"}, {"Flight Number": 37, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 9600.0, "Booster Version": "F9 FT B1036.1", "Booster Version Category": "FT"}, {"Flight Number": 40, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 475.0, "Booster Version": "F9 FT B1038.1", "Booster Version Category": "FT"}, {"Flight Number": 42, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 9600.0, "Booster Version": "F9 B4 B1041.1", "Booster Version Category": "B4"}, {"Flight Number": 46, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 9600.0, "Booster Version": "F9 FT  B1036.2", "Booster Version Category": "FT"}, {"Flight Number": 49, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 2150.0, "Booster Version": "F9 FT  B1038.2", "Booster Version Category": "FT"}, {"Flight Number": 51, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 9600.0, "Booster Version": "F9 B4  B1041.2", "Booster Version Category": "B4"}, {"Flight Number": 55, "Launch Site": "VAFB SLC-4E", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 6460.0, "Booster Version": "F9 B4  B1043.2", "Booster Version Category": "B4"}, {"Flight Number": 30, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 2490.0, "Booster Version": "F9 FT B1031.1", "Booster Version Category": "FT"}, {"Flight Number": 31, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 5600.0, "Booster Version": "F9 FT B1030", "Booster Version Category": "FT"}, {"Flight Number": 32, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 5300.0, "Booster Version": "F9 FT  B1021.2", "Booster Version Category": "FT"}, {"Flight Number": 33, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 3696.65, "Booster Version": "F9 FT B1032.1", "Booster Version Category": "FT"}, {"Flight Number": 34, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 6070.0, "Booster Version": "F9 FT B1034", "Booster Version Category": "FT"}, {"Flight Number": 35, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 2708.0, "Booster Version": "F9 FT B1035.1", "Booster Version Category": "FT"}, {"Flight Number": 36, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 3669.0, "Booster Version": "F9 FT  B1029.2", "Booster Version Category": "FT"}, {"Flight Number": 38, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 6761.0, "Booster Version": "F9 FT B1037", "Booster Version Category": "FT"}, {"Flight Number": 39, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 3310.0, "Booster Version": "F9 B4 B1039.1", "Booster Version Category": "B4"}, {"Flight Number": 41, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 4990.0, "Booster Version": "F9 B4 B1040.1", "Booster Version Category": "B4"}, {"Flight Number": 43, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 5200.0, "Booster Version": "F9 FT  B1031.2", "Booster Version Category": "FT"}, {"Flight Number": 44, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 3500.0, "Booster Version": "F9 B4 B1042.1", "Booster Version Category": "B4"}, {"Flight Number": 54, "Launch Site": "KSC LC-39A", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 3600.0, "Booster Version": "F9 B5  B1046.1", "Booster Version Category": "B5"}, {"Flight Number": 45, "Launch Site": "CCAFS SLC-40", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 2205.0, "Booster Version": "F9 FT  B1035.2", "Booster Version Category": "FT"}, {"Flight Number": 47, "Launch Site": "CCAFS SLC-40", "Mission Outcome": "Success  (payload\u00a0status unclear)", "class": 1, "Payload Mass (kg)": 3696.65, "Booster Version": "F9 B4 B1043.1", "Booster Version Category": "B4"}, {"Flight Number": 48, "Launch Site": "CCAFS SLC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 4230.0, "Booster Version": "F9 FT  B1032.2", "Booster Version Category": "FT"}, {"Flight Number": 50, "Launch Site": "CCAFS SLC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 6092.0, "Booster Version": "F9 B4 B1044", "Booster Version Category": "B4"}, {"Flight Number": 52, "Launch Site": "CCAFS SLC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 2647.0, "Booster Version": "F9 B4  B1039.2", "Booster Version Category": "B4"}, {"Flight Number": 53, "Launch Site": "CCAFS SLC-40", "Mission Outcome": "Success", "class": 1, "Payload Mass (kg)": 362.0, "Booster Version": "F9 B4 B1045.1", "Booster Version Category": "B4"}, {"Flight Number": 56, "Launch Site": "CCAFS SLC-40", "Mission Outcome": "Success", "class": 0, "Payload Mass (kg)": 5384.0, "Booster Version": "F9 B4  B1040.2", "Booster Version Category": "B4"}];
+
+const sites = [...new Set(spacexData.map(d => d['Launch Site']))];
+const boosterCategories = [...new Set(spacexData.map(d => d['Booster Version Category']))];
+const boosterColors = {
+  'v1.0': '#8894A6',
+  'v1.1': '#49D6E8',
+  'FT':   '#FFB454',
+  'B4':   '#7C8CFF',
+  'B5':   '#FF6B6B'
+};
+
+const dropdown = document.getElementById('site-dropdown');
+const allOpt = document.createElement('option');
+allOpt.value = 'ALL'; allOpt.textContent = 'All Sites';
+dropdown.appendChild(allOpt);
+sites.forEach(s => {
+  const opt = document.createElement('option');
+  opt.value = s; opt.textContent = s;
+  dropdown.appendChild(opt);
+});
+dropdown.value = 'ALL';
+
+const minSlider = document.getElementById('payload-min');
+const maxSlider = document.getElementById('payload-max');
+const minLabel = document.getElementById('range-min-label');
+const maxLabel = document.getElementById('range-max-label');
+const trackFill = document.getElementById('track-fill');
+
+function updateTrackFill(){
+  const min = parseInt(minSlider.value), max = parseInt(maxSlider.value);
+  const lo = (min / 10000) * 100, hi = (max / 10000) * 100;
+  trackFill.style.left = lo + '%';
+  trackFill.style.width = (hi - lo) + '%';
+  minLabel.textContent = min;
+  maxLabel.textContent = max;
+}
+
+function darkLayout(extra){
+  return Object.assign({
+    paper_bgcolor:'rgba(0,0,0,0)',
+    plot_bgcolor:'rgba(0,0,0,0)',
+    font:{color:'#E7ECF3', family:'Inter, sans-serif', size:12},
+    margin:{t:10, l:50, r:20, b:50},
+    legend:{orientation:'h', y:-0.18, font:{size:11}},
+  }, extra || {});
+}
+
+// TASK 2 equivalent: pie chart callback
+function getPieChart(enteredSite){
+  let trace, layout, sub;
+  if (enteredSite === 'ALL'){
+    const bySite = {};
+    sites.forEach(s => bySite[s] = 0);
+    spacexData.forEach(d => { if (d.class === 1) bySite[d['Launch Site']] += 1; });
+    trace = {
+      type:'pie',
+      labels: sites,
+      values: sites.map(s => bySite[s]),
+      hole:0.45,
+      marker:{colors:['#49D6E8','#FFB454','#7C8CFF','#FF6B6B'], line:{color:'#0A0D14', width:2}},
+      textinfo:'label+percent',
+      textfont:{color:'#E7ECF3', size:11}
+    };
+    layout = darkLayout({title:''});
+    sub = 'Total successful launches by site';
+  } else {
+    const filtered = spacexData.filter(d => d['Launch Site'] === enteredSite);
+    const successCount = filtered.filter(d => d.class === 1).length;
+    const failCount = filtered.filter(d => d.class === 0).length;
+    trace = {
+      type:'pie',
+      labels:['Success (1)','Failure (0)'],
+      values:[successCount, failCount],
+      hole:0.45,
+      marker:{colors:['#49D6E8','#FF6B6B'], line:{color:'#0A0D14', width:2}},
+      textinfo:'label+percent',
+      textfont:{color:'#E7ECF3', size:11}
+    };
+    layout = darkLayout({title:''});
+    sub = `Successful launches for ${enteredSite}`;
+  }
+  Plotly.react('success-pie-chart', [trace], layout, {displayModeBar:false, responsive:true});
+  document.getElementById('pie-sub').textContent = sub;
+}
+
+// TASK 4 equivalent: scatter chart callback
+function getScatterChart(enteredSite, low, high){
+  let massFiltered = spacexData.filter(d => d['Payload Mass (kg)'] >= low && d['Payload Mass (kg)'] <= high);
+  if (enteredSite !== 'ALL'){
+    massFiltered = massFiltered.filter(d => d['Launch Site'] === enteredSite);
+  }
+  const traces = boosterCategories.map(cat => {
+    const subset = massFiltered.filter(d => d['Booster Version Category'] === cat);
+    return {
+      type:'scatter',
+      mode:'markers',
+      name:cat,
+      x: subset.map(d => d['Payload Mass (kg)']),
+      y: subset.map(d => d.class),
+      marker:{color: boosterColors[cat] || '#E7ECF3', size:10, opacity:0.85, line:{color:'#0A0D14', width:1}}
+    };
+  });
+  const layout = darkLayout({
+    xaxis:{title:'Payload Mass (kg)', gridcolor:'#232B40', zerolinecolor:'#232B40'},
+    yaxis:{title:'Class (0 = no landing, 1 = landing)', tickvals:[0,1], gridcolor:'#232B40', zerolinecolor:'#232B40'},
+    title:''
+  });
+  Plotly.react('success-payload-scatter-chart', traces, layout, {displayModeBar:false, responsive:true});
+  const label = enteredSite === 'ALL' ? 'all sites' : enteredSite;
+  document.getElementById('scatter-sub').textContent = `Correlation between payload and success for ${label}`;
+}
+
+function updateTelemetry(enteredSite){
+  const filtered = enteredSite === 'ALL' ? spacexData : spacexData.filter(d => d['Launch Site'] === enteredSite);
+  const success = filtered.filter(d => d.class === 1).length;
+  document.getElementById('tele-total').textContent = filtered.length;
+  document.getElementById('tele-success').textContent = success;
+  document.getElementById('tele-fail').textContent = filtered.length - success;
+}
+
+function render(){
+  const site = dropdown.value;
+  let min = parseInt(minSlider.value), max = parseInt(maxSlider.value);
+  if (min > max){ [min, max] = [max, min]; }
+  updateTrackFill();
+  getPieChart(site);
+  getScatterChart(site, min, max);
+  updateTelemetry(site);
+}
+
+dropdown.addEventListener('change', render);
+minSlider.addEventListener('input', () => {
+  if (parseInt(minSlider.value) > parseInt(maxSlider.value)) minSlider.value = maxSlider.value;
+  render();
+});
+maxSlider.addEventListener('input', () => {
+  if (parseInt(maxSlider.value) < parseInt(minSlider.value)) maxSlider.value = minSlider.value;
+  render();
+});
+
+render();
+</script>
+
+</body>
+</html>
