@@ -74,7 +74,7 @@ def get_pie_chart(entered_site):
               )
             
 def get_scatter_chart(entered_site, payload_range):
- low = payload_range[0]
+    low = payload_range[0]
     high = payload_range[1]
     mass_filtered = spacex_df[(spacex_df['Payload Mass (kg)'] >= low) & (spacex_df['Payload Mass (kg)'] <= high)]
     if entered_site == 'ALL':
